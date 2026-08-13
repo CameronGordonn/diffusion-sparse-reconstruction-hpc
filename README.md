@@ -80,14 +80,19 @@ Data and processed arrays are not tracked (~3.2 GB combined). To regenerate:
 
 ## Checkpoints
 
-`models/` holds the three `minimal`-architecture diffusion checkpoints plus training
-history JSONs for every run, including the VAE.
+`models/` holds both diffusion architectures at all three sparsity levels:
 
-Two caveats:
+| File | Architecture | Notes |
+|---|---|---|
+| `diffusion_{30,60,90}pct_v2_best.pt` | `v2` | **Produced the reported metrics** |
+| `diffusion_{30,60,90}pct_best.pt` | `minimal` | Earlier baseline run |
 
-- The **VAE checkpoint is not included** — at 176 MB it exceeds GitHub's 100 MB per-file
-  limit. Retrain it with `hpc/sbatch_vae_train.sh`.
-- The metrics in `results/diffusion_evaluation.json` were produced by the **`v2`**
-  architecture (`scripts/04_diffusion_model_v2.py`), whose checkpoints are not included
-  here. The bundled `minimal` checkpoints come from an earlier run and will not reproduce
-  those exact numbers. Retrain with `MODEL_TYPE=v2` to match.
+Evaluate against either by passing the matching `--model-type`; the loader also reads the
+architecture recorded inside the checkpoint itself:
+
+```bash
+python scripts/05_diffusion_eval.py --data-dir . --out-root . --model-type v2
+```
+
+The **VAE checkpoint is not included** — at 176 MB it exceeds GitHub's 100 MB per-file
+limit. Retrain it with `hpc/sbatch_vae_train.sh`.
