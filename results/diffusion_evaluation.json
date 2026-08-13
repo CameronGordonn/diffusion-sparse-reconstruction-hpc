@@ -1,0 +1,119 @@
+{
+  "30pct": {
+    "1983": {
+      "num_cases": 20,
+      "rmse_normalized": {
+        "unobserved": 152.1249542236328,
+        "observed": 1.275214032148142e-07
+      },
+      "rmse_physical": {
+        "unobserved": 764508.3125,
+        "observed": 9.982730261981487e-05
+      },
+      "rmse_unobserved": 152.1249542236328,
+      "rmse_observed": 1.275214032148142e-07
+    },
+    "1985": {
+      "num_cases": 20,
+      "rmse_normalized": {
+        "unobserved": 152.005859375,
+        "observed": 9.743246920379534e-08
+      },
+      "rmse_physical": {
+        "unobserved": 745442.625,
+        "observed": 3.6422799894353375e-05
+      },
+      "rmse_unobserved": 152.005859375,
+      "rmse_observed": 9.743246920379534e-08
+    },
+    "summary": {
+      "num_years": 2,
+      "rmse_normalized": {
+        "unobserved_mean": 152.0654067993164,
+        "observed_mean": 1.1247693620930477e-07
+      },
+      "rmse_physical": {
+        "unobserved_mean": 754975.46875,
+        "observed_mean": 6.812505125708412e-05
+      }
+    }
+  },
+  "60pct": {
+    "1983": {
+      "num_cases": 20,
+      "rmse_normalized": {
+        "unobserved": 209.78546142578125,
+        "observed": 1.2761223899815377e-07
+      },
+      "rmse_physical": {
+        "unobserved": 1015493.375,
+        "observed": 0.00010337663115933537
+      },
+      "rmse_unobserved": 209.78546142578125,
+      "rmse_observed": 1.2761223899815377e-07
+    },
+    "1985": {
+      "num_cases": 20,
+      "rmse_normalized": {
+        "unobserved": 218.54640197753906,
+        "observed": 9.672855583175988e-08
+      },
+      "rmse_physical": {
+        "unobserved": 1045286.1875,
+        "observed": 3.908354847226292e-05
+      },
+      "rmse_unobserved": 218.54640197753906,
+      "rmse_observed": 9.672855583175988e-08
+    },
+    "summary": {
+      "num_years": 2,
+      "rmse_normalized": {
+        "unobserved_mean": 214.16593170166016,
+        "observed_mean": 1.1217039741495682e-07
+      },
+      "rmse_physical": {
+        "unobserved_mean": 1030389.78125,
+        "observed_mean": 7.123008981579915e-05
+      }
+    }
+  },
+  "90pct": {
+    "1983": {
+      "num_cases": 20,
+      "rmse_normalized": {
+        "unobserved": 275.7571105957031,
+        "observed": 1.268764009410006e-07
+      },
+      "rmse_physical": {
+        "unobserved": 1360814.25,
+        "observed": 9.593598952051252e-05
+      },
+      "rmse_unobserved": 275.7571105957031,
+      "rmse_observed": 1.268764009410006e-07
+    },
+    "1985": {
+      "num_cases": 20,
+      "rmse_normalized": {
+        "unobserved": 239.8416290283203,
+        "observed": 9.721227200998328e-08
+      },
+      "rmse_physical": {
+        "unobserved": 1113222.75,
+        "observed": 3.812109571299516e-05
+      },
+      "rmse_unobserved": 239.8416290283203,
+      "rmse_observed": 9.721227200998328e-08
+    },
+    "summary": {
+      "num_years": 2,
+      "rmse_normalized": {
+        "unobserved_mean": 257.7993698120117,
+        "observed_mean": 1.1204433647549195e-07
+      },
+      "rmse_physical": {
+        "unobserved_mean": 1237018.5,
+        "observed_mean": 6.702854261675384e-05
+      }
+    }
+  }
+}

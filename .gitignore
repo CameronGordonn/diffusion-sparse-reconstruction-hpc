@@ -1,0 +1,20 @@
+# Raw and processed data — regenerable, far too large for git
+data/raw/
+results/processed/
+
+# VAE checkpoint is 176 MB, over GitHub's 100 MB per-file limit
+models/vae_best.pt
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environments
+.venv/
+venv/
+.devcontainer/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
