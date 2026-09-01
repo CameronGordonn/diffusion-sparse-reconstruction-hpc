@@ -29,9 +29,12 @@ echo "Conda env: $CONDA_ENV"
 echo "Python path: $(which python)"
 echo "SPARSITY: $SPARSITY"
 MODEL_TYPE="${MODEL_TYPE:-minimal}"
+MASK_TYPE="${MASK_TYPE:-iid}"
+MASK_BLOCK="${MASK_BLOCK:-8}"
 BASE_CHANNELS="${BASE_CHANNELS:-64}"
 USE_AMP="${USE_AMP:-1}"
 echo "MODEL_TYPE: $MODEL_TYPE"
+echo "MASK_TYPE: $MASK_TYPE (block=$MASK_BLOCK)"
 echo "BASE_CHANNELS: $BASE_CHANNELS"
 echo "USE_AMP: $USE_AMP"
 if [ ! -f "$PROJECT_DIR/scripts/04_diffusion_train.py" ]; then
@@ -50,6 +53,8 @@ srun python "$PROJECT_DIR/scripts/04_diffusion_train.py" \
     --model-type "$MODEL_TYPE" \
     --base-channels "$BASE_CHANNELS" \
     --sparsity "$SPARSITY" \
+    --mask-type "$MASK_TYPE" \
+    --mask-block "$MASK_BLOCK" \
     --epochs 100 \
     --patience 25 \
     --lr 5e-5 \

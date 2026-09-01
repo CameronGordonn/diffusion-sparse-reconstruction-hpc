@@ -350,6 +350,8 @@ def main(args):
     models_dir.mkdir(parents=True, exist_ok=True)
     
     checkpoint_name = f"diffusion_{int(args.sparsity * 100)}pct"
+    if args.mask_type != "iid":
+        checkpoint_name = f"{checkpoint_name}_{args.mask_type}{args.mask_block}"
     if args.model_type != "minimal":
         checkpoint_name = f"{checkpoint_name}_{args.model_type}"
     best_loss = float("inf")
@@ -367,11 +369,19 @@ def main(args):
             batch_size = x_0.shape[0]
             
             # Generate random mask for this batch
-            mask_spatial = generate_mask(
-                (x_0.shape[2], x_0.shape[3]),
-                args.sparsity,
-                seed=mask_seed + epoch + n_batches,
-            )
+            if args.mask_type == "block":
+                mask_spatial = generate_structured_mask(
+                    (x_0.shape[2], x_0.shape[3]),
+                    args.sparsity,
+                    block=args.mask_block,
+                    seed=mask_seed + epoch + n_batches,
+                )
+            else:
+                mask_spatial = generate_mask(
+                    (x_0.shape[2], x_0.shape[3]),
+                    args.sparsity,
+                    seed=mask_seed + epoch + n_batches,
+                )
             mask = torch.from_numpy(mask_spatial[np.newaxis, np.newaxis, :, :]).float().to(device)
             mask = mask.expand(batch_size, -1, -1, -1)
             
@@ -405,6 +415,8 @@ def main(args):
                         "clamp_observed": args.clamp_observed,
                         "model_type": args.model_type,
                         "base_channels": args.base_channels,
+                        "mask_type": args.mask_type,
+                        "mask_block": args.mask_block,
                         "use_amp": args.use_amp,
                     },
                 },
@@ -431,6 +443,14 @@ def parse_args():
     parser.add_argument("--model-type", type=str, default="minimal", choices=["minimal", "v2"], help="Diffusion architecture variant")
     parser.add_argument("--base-channels", type=int, default=64, help="Model width (higher can improve quality at higher cost)")
     parser.add_argument("--sparsity", type=float, default=0.3, help="Fraction missing (0.3, 0.6, 0.9)")
+    parser.add_argument(
+        "--mask-type",
+        type=str,
+        default="iid",
+        choices=["iid", "block"],
+        help="Observation mask geometry: i.i.d. per-pixel, or contiguous blocks",
+    )
+    parser.add_argument("--mask-block", type=int, default=8, help="Block side length when --mask-type block")
     parser.add_argument("--num-steps", type=int, default=300, help="Number of diffusion steps")
     parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
     parser.add_argument("--batch-size", type=int, default=16, help="Batch size")

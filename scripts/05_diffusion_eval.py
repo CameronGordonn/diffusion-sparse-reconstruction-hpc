@@ -44,10 +44,17 @@ def load_diffusion_training_helpers():
         raise ImportError(f"Unable to load diffusion training helpers from {module_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.CosineNoiseSchedule, module.DiffusionTrainer, module.generate_mask
+    return (
+        module.CosineNoiseSchedule,
+        module.DiffusionTrainer,
+        module.generate_mask,
+        module.generate_structured_mask,
+    )
 
 
-CosineNoiseSchedule, DiffusionTrainer, generate_mask = load_diffusion_training_helpers()
+CosineNoiseSchedule, DiffusionTrainer, generate_mask, generate_structured_mask = (
+    load_diffusion_training_helpers()
+)
 
 
 def load_normalization(data_dir: Path) -> Tuple[np.ndarray, np.ndarray]:
@@ -228,6 +235,8 @@ def main(args: argparse.Namespace) -> None:
 
     for sparsity in sparsities:
         checkpoint_stem = f"diffusion_{int(sparsity * 100)}pct"
+        if args.mask_type != "iid":
+            checkpoint_stem = f"{checkpoint_stem}_{args.mask_type}{args.mask_block}"
         if args.model_type != "minimal":
             checkpoint_stem = f"{checkpoint_stem}_{args.model_type}"
         checkpoint = models_dir / f"{checkpoint_stem}_best.pt"
@@ -248,7 +257,17 @@ def main(args: argparse.Namespace) -> None:
             # evaluate only the first n_cases * 6 h -- a few days of January.
             case_idx = np.linspace(0, norm.shape[0] - 1, n_cases).astype(int)
             x0 = torch.from_numpy(norm[case_idx]).float().to(device)
-            mask_np = generate_mask((x0.shape[2], x0.shape[3]), sparsity, seed=int(sparsity * 1000) + year)
+            # Evaluate with the mask geometry the checkpoint was trained on.
+            mask_seed = int(sparsity * 1000) + year
+            if hyperparams.get("mask_type", "iid") == "block":
+                mask_np = generate_structured_mask(
+                    (x0.shape[2], x0.shape[3]),
+                    sparsity,
+                    block=int(hyperparams.get("mask_block", 8)),
+                    seed=mask_seed,
+                )
+            else:
+                mask_np = generate_mask((x0.shape[2], x0.shape[3]), sparsity, seed=mask_seed)
             mask = torch.from_numpy(mask_np[np.newaxis, np.newaxis, :, :]).float().to(device)
             mask = mask.expand(x0.shape[0], -1, -1, -1)
             y = x0 * mask
@@ -321,6 +340,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=Path("."))
     parser.add_argument("--out-root", type=Path, default=Path("."))
     parser.add_argument("--model-type", type=str, default="minimal", choices=["minimal", "v2"], help="Diffusion architecture variant")
+    parser.add_argument("--mask-type", type=str, default="iid", choices=["iid", "block"],
+                        help="Which trained variant to evaluate; must match how it was trained")
+    parser.add_argument("--mask-block", type=int, default=8, help="Block side length when --mask-type block")
     parser.add_argument("--num-samples", type=int, default=20)
     parser.add_argument("--num-cases", type=int, default=20, help="Use <=0 to evaluate all available cases")
     return parser.parse_args()
