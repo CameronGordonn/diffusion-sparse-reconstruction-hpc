@@ -200,7 +200,33 @@ structured gaps is open, and the honest way to close it is to retrain one model 
 one sparsity level on block masks and re-run the comparison. That is a single
 training job.
 
-Note also that the margin over interpolation at 30% random masking is real but
-thin (0.017 vs 0.024). With 70% coverage on fields this smooth, there is little for
-a generative prior to add. The case for diffusion here lives at 90% missingness and
-under structured gaps, which is where the comparison should be argued.
+### The margin over interpolation, measured
+
+Running the fixed sampler across both test years and all three sparsities, against
+the Gaussian inpaint computed on the identical cases and masks. These are CPU
+spot-check numbers (8 cases, mean of 2 samples) pending a cluster re-run, but the
+two years agree closely and the pattern is unambiguous:
+
+| Missing | Diffusion | Gaussian inpaint | Ratio |
+|---|---:|---:|---|
+| 30% | 0.0152 | 0.0247 | 1.62× better |
+| 60% | 0.0182 | 0.0344 | 1.89× better |
+| 90% | 0.1278 | 0.0815 | **1.57× worse** |
+
+**The expected story is backwards.** The intuition — that a generative prior earns
+its keep where data is scarcest — predicts the diffusion advantage should widen with
+sparsity. It does the opposite, and at 90% the model loses to a five-line Gaussian
+smoother. Both years agree (1983: 0.119 vs 0.078; 1985: 0.137 vs 0.085), so this is
+not a seed artifact.
+
+Two readings, not yet separated: the 90% model may simply be undertrained on a
+much harder objective, or the learned prior may be weak enough that it only helps
+while the conditioning is dense enough to carry most of the answer. Distinguishing
+them means looking at the 90% training curve and at whether the model beats
+climatology in the interior of large gaps, which is future work.
+
+What this does settle is that **there is no sparsity level in this setup where
+diffusion is compellingly better than interpolation.** With i.i.d. pixel masks the
+best case is a 1.9× margin over five lines of numpy. That is the strongest argument
+for the structured-mask experiment above: it is the remaining setting where a
+learned prior has a plausible reason to win, and it is now one job away.

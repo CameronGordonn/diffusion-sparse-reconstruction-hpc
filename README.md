@@ -81,17 +81,37 @@ This is unfixed. The evaluation now reports and plots the baselines so the gap i
 diagnosing the mean collapse itself (likely posterior collapse in the latent, given
 `beta` and the reconstruction/KL balance) is future work.
 
-**Diffusion reconstruction RMSE (normalized), cross-year means:**
+### Phase 2 — Reconstruction: previous numbers withdrawn
 
-| Sparsity | Unobserved | Observed |
-|---|---:|---:|
-| 30% | 152.07 | 1.12e-07 |
-| 60% | 214.17 | 1.12e-07 |
-| 90% | 257.80 | 1.12e-07 |
+The originally reported RMSE of 152 / 214 / 258 was a **sampler bug, not a model
+failure**, and those numbers are withdrawn. The cosine schedule sets ᾱ_T = cos²(π/2) = 0
+exactly, which made the ε-form posterior's leading 1/√α_T coefficient reach ~100 on the
+first reverse step; that amplified the model's residual error off the training
+distribution, and since the U-Net is GroupNorm-normalised its ‖ε̂‖ saturates regardless of
+‖x‖, leaving no restoring force. Full diagnosis, including the two hypotheses that turned
+out to be wrong, is in [`docs/guides/SAMPLER_FIX.md`](docs/guides/SAMPLER_FIX.md).
 
-Observed-pixel error sits at floating-point noise, confirming the conditioning mechanism
-holds observed values exactly. Unobserved-region error is large in normalized units — see
-the report for discussion.
+The same weights with a fixed sampler give **RMSE 0.017 instead of 152**. The checkpoints
+were always fine.
+
+Two further corrections to how those numbers were read:
+
+- The observed-pixel RMSE of ~1e-7 confirmed nothing. `sample()` overwrites observed
+  pixels with the input as its final operation, so that figure is float32 round-trip
+  error and is guaranteed by construction.
+- The reported score was partly an artifact of ensemble size. A diverging sampler's
+  RMSE falls with `num_samples` as it partially cancels a correlated divergence
+  (measured floor ≈ 118, not zero), so runs with different `num_samples` were not
+  comparable.
+
+**The corrected results table is pending a cluster re-run** and is deliberately not
+reproduced here from a CPU spot-check. The qualitative finding from that spot-check is
+stable across both test years and worth stating in advance: with i.i.d. pixel masks the
+fixed model beats a Gaussian-inpaint baseline by 1.6× at 30% missing and 1.9× at 60%, but
+**loses to it at 90%** — the opposite of the expectation that a generative prior helps
+most where data is scarcest. No sparsity level in this setup shows a compelling margin
+over five lines of numpy, which is why the structured-mask experiment
+(`--mask-type block`) is the open question rather than a footnote.
 
 ## Reproducing
 
@@ -104,12 +124,13 @@ Data and processed arrays are not tracked (~3.2 GB combined). To regenerate:
 
 ## Checkpoints
 
-`models/` holds both diffusion architectures at all three sparsity levels:
+Checkpoints are attached to the latest [GitHub Release](../../releases/latest) rather than
+tracked in git — six files at ~30 MB each. Download them into `models/` before evaluating.
 
 | File | Architecture | Notes |
 |---|---|---|
-| `diffusion_{30,60,90}pct_v2_best.pt` | `v2` | **Produced the reported metrics** |
-| `diffusion_{30,60,90}pct_best.pt` | `minimal` | Earlier baseline run |
+| `diffusion_{30,60,90}pct_v2_best.pt` | `v2` | Used for all current results |
+| `diffusion_{30,60,90}pct_best.pt` | `minimal` | Earlier architecture |
 
 Evaluate against either by passing the matching `--model-type`; the loader also reads the
 architecture recorded inside the checkpoint itself:
