@@ -244,7 +244,10 @@ def main(args: argparse.Namespace) -> None:
         for year in test_years:
             norm = np.load(processed_dir / f"norm_{year}.npy")
             n_cases = norm.shape[0] if args.num_cases <= 0 else min(args.num_cases, norm.shape[0])
-            x0 = torch.from_numpy(norm[: n_cases]).float().to(device)
+            # Spread cases evenly across the year. Taking norm[:n_cases] would
+            # evaluate only the first n_cases * 6 h -- a few days of January.
+            case_idx = np.linspace(0, norm.shape[0] - 1, n_cases).astype(int)
+            x0 = torch.from_numpy(norm[case_idx]).float().to(device)
             mask_np = generate_mask((x0.shape[2], x0.shape[3]), sparsity, seed=int(sparsity * 1000) + year)
             mask = torch.from_numpy(mask_np[np.newaxis, np.newaxis, :, :]).float().to(device)
             mask = mask.expand(x0.shape[0], -1, -1, -1)
