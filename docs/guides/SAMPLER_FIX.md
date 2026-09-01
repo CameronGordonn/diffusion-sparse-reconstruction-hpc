@@ -101,12 +101,14 @@ Isolating the two guards (30% missing, 1983):
 | Guard | RMSE (unobserved) |
 |---|---|
 | ᾱ floor only | 0.0173 |
-| x₀ clipping only | see `validated.json` |
-| Both | 0.0172 |
-| Neither | diverges |
+| x₀ clipping only | 0.0173 |
+| Both | 0.0173 |
+| Neither | 1.23 × 10⁶ |
 
-The ᾱ floor is the load-bearing change; x₀ clipping is redundant once it is in
-place but is cheap insurance and is standard practice.
+Either guard alone is sufficient, and they are not additive — both address the
+same singularity, which is √ᾱ_T = 0 appearing in a denominator. With neither, the
+x₀ form diverges harder than the ε form did, because 1/√ᾱ_T is ~10¹⁶ rather than
+~10². Keeping both is cheap insurance and matches standard practice.
 
 **Result: normalized RMSE on unobserved pixels goes from 152 to 0.017.** Output
 field std is 0.917 against a truth std of 0.916.

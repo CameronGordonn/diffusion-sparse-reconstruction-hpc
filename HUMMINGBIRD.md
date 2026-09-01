@@ -49,7 +49,7 @@ METHOD=sftp bash hpc/secure_sync.sh push your_cruzid
 ```
 
 This helper script only uses encrypted SSH transport (`rsync` over SSH or `sftp`).
-Pass only your CruzID token (for example `your_cruzid`), not `@ucsc.edu` and not angle brackets.
+Pass only your CruzID token (for example `abc123`), not `@ucsc.edu` and not angle brackets.
 
 ### Option A — sftp command line (Mac/Linux/WSL)
 

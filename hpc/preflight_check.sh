@@ -64,10 +64,10 @@ echo "[OK] Required processed data present"
 mkdir -p "$PROJECT_DIR/logs" "$PROJECT_DIR/models" "$PROJECT_DIR/results" "$PROJECT_DIR/plots"
 echo "[OK] Output directories ensured"
 
-if grep -R "your_cruzid" "$HPC_DIR"/sbatch_*.sh >/dev/null 2>&1; then
-  fail "Email placeholder still present in one or more hpc/*.sh files. Replace before submit."
+if grep -RE "[A-Za-z0-9._%+-]+@ucsc\.edu" "$HPC_DIR"/sbatch_*.sh >/dev/null 2>&1; then
+  fail "A literal @ucsc.edu address is still present in hpc/sbatch_*.sh. Replace before submit."
 fi
-echo "[OK] SLURM mail placeholders replaced"
+echo "[OK] No hard-coded addresses in SLURM scripts"
 
 if [ "${CHECK_SBATCH_TEST:-0}" = "1" ]; then
   (cd "$PROJECT_DIR" && sbatch --test-only hpc/sbatch_vae_train.sh >/dev/null)
