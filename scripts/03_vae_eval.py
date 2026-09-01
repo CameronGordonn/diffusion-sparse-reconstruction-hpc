@@ -351,18 +351,37 @@ def main(args):
             "n_starts": autoreg_norm["n_starts"],
         }
 
+        # Trivial baselines: a forecast that loses to these has no skill.
+        year_results['baselines'] = {
+            'one_step': one_step_baselines(x_t.cpu().numpy(), x_tp1_np, climatology),
+            'by_lead': persistence_by_lead(data_dir, test_year, lead_hours, climatology),
+        }
+        print(f"  Persistence one-step RMSE (normalized): {year_results['baselines']['one_step']['persistence']:.6f}")
+        print(f"  Climatology RMSE (normalized):          {year_results['baselines']['one_step']['gridpoint_climatology']:.6f}")
+
         # Lead-time figure
         fig, ax = plt.subplots(figsize=(8, 4.5), constrained_layout=True)
         lead_np = np.array(lead_hours)
         rmse_mean = np.array(autoreg_norm["rmse_by_lead_mean"])
         rmse_std = np.array(autoreg_norm["rmse_by_lead_std"])
-        ax.plot(lead_np, rmse_mean, label="Normalized RMSE", linewidth=2)
-        ax.fill_between(lead_np, rmse_mean - rmse_std, rmse_mean + rmse_std, alpha=0.2)
+        ax.plot(lead_np, rmse_mean, label="VAE", linewidth=2, color="C0")
+        ax.fill_between(lead_np, rmse_mean - rmse_std, rmse_mean + rmse_std, alpha=0.2, color="C0")
+
+        # Reference curves. A forecast above these lines has no skill.
+        base_lead = year_results["baselines"]["by_lead"]
+        ax.plot(lead_np, base_lead["persistence"], linestyle="--", linewidth=1.8,
+                color="C1", label="Persistence")
+        ax.axhline(base_lead["gridpoint_climatology"], linestyle=":", linewidth=1.8,
+                   color="0.35", label="Climatology (per-gridpoint)")
+        ax.axhline(1.0, linestyle="-.", linewidth=1.2, color="0.65",
+                   label="Global training mean")
+
         ax.set_xlabel("Lead Time (hours)")
         ax.set_ylabel("RMSE (normalized)")
         ax.set_title(f"VAE Autoregressive Skill vs Lead Time ({test_year})")
+        ax.set_ylim(bottom=0.0)
         ax.grid(alpha=0.3)
-        ax.legend(loc="upper left")
+        ax.legend(loc="center right", fontsize=9)
         fig.savefig(str((Path(args.out_root) / "plots" / "phase1_vae" / f"phase1_rollout_{test_year}.png")), dpi=150)
         plt.close(fig)
         
@@ -408,13 +427,6 @@ def main(args):
         fig.savefig(str(plots_dir / f"phase1_onestep_{test_year}.png"), dpi=150)
         plt.close(fig)
         
-        # Trivial baselines: a forecast that loses to these has no skill.
-        year_results['baselines'] = {
-            'one_step': one_step_baselines(x_t.cpu().numpy(), x_tp1_np, climatology),
-            'by_lead': persistence_by_lead(data_dir, test_year, lead_hours, climatology),
-        }
-        print(f"  Persistence one-step RMSE (normalized): {year_results['baselines']['one_step']['persistence']:.6f}")
-        print(f"  Climatology RMSE (normalized):          {year_results['baselines']['one_step']['gridpoint_climatology']:.6f}")
         results[test_year] = year_results
     
     # Save results

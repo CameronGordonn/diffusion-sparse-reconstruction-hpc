@@ -235,16 +235,28 @@ class DiffusionTrainer:
         """
         Reverse diffusion sampling.
 
-        Uses the x_0-parameterised posterior rather than the algebraically
-        equivalent epsilon form. The two agree in exact arithmetic but not
-        numerically: the cosine schedule sets ᾱ_T = cos²(π/2) = 0 exactly, so
-        the epsilon form's leading 1/√α_T coefficient reaches ~100 on the first
-        reverse step. That multiplies the model's residual error by 100, pushing
-        x off the training distribution; because the network is GroupNorm-
-        normalised its ‖ε̂‖ saturates around 1-2 regardless of ‖x‖, so no
-        restoring force remains and the remaining steps amplify without bound.
-        Clamping ᾱ_t away from zero and predicting x_0 keeps every coefficient
-        O(1). See docs/guides/SAMPLER_FIX.md.
+        The divergence this replaces came from a singularity at the schedule
+        endpoint, not from the choice of parameterisation. The cosine schedule
+        sets ᾱ_T = cos²(π/2) = 0 exactly; in the previous epsilon-form posterior
+        that surfaced as β_T clipping to 0.9999, so α_T = 1e-4 and the leading
+        1/√α_T coefficient reached ~100 on the first reverse step. That
+        multiplies the model's residual error by 100, pushing x off the training
+        distribution; because the network is GroupNorm-normalised its ‖ε̂‖
+        saturates around 1-2 regardless of ‖x‖, so no restoring force remains
+        and the remaining steps amplify unopposed.
+
+        Two independent guards each remove the singularity, and either alone is
+        sufficient:
+          - alpha_cumprod_min floors ᾱ_t. Since α_t is formed as ᾱ_t / ᾱ_{t-1},
+            the floor propagates: at t = T it gives α = 0.371 and 1/√α = 1.64
+            instead of 100.
+          - x0_clip bounds the predicted clean field, which bounds the posterior
+            mean however large 1/√α becomes.
+
+        The x_0 parameterisation is algebraically identical to the epsilon form
+        and does no work on its own -- with both guards disabled it diverges just
+        as hard. It is used because x0_clip is only naturally expressible in it.
+        See docs/guides/SAMPLER_FIX.md.
 
         Args:
             shape: (C, H, W)

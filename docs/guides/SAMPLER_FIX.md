@@ -81,9 +81,23 @@ stable. It is fatal for a real one.
 
 ## The fix
 
-Use the x₀-parameterised posterior instead of the algebraically equivalent ε form,
-and floor ᾱ_t away from zero. The two forms agree in exact arithmetic but not
-numerically: predicting x₀ keeps every coefficient O(1) and never forms 1/√α_T.
+The repair is a **guard on the schedule endpoint, not a change of
+parameterisation**. Substituting x̂₀ = (x − √(1−ᾱ)ε̂)/√ᾱ into the x₀-form
+posterior mean recovers the ε form exactly, so the parameterisation cannot by
+itself do anything — and the ablation below confirms it, since the ungated x₀
+form diverges harder than the ungated ε form did.
+
+Two independent guards each remove the singularity:
+
+- **Floor ᾱ_t** (`alpha_cumprod_min = 1e-5`). Because α_t is formed as
+  ᾱ_t / ᾱ_{t−1} rather than read from the pre-clipped β array, the floor
+  propagates into α: at t = T it gives α = 1e-5 / 2.70e-5 = 0.371 and
+  1/√α = **1.64** instead of 100.
+- **Clamp x̂₀** to a data range (`x0_clip = 4.0`, the Improved-DDPM convention).
+  This bounds the posterior mean however large 1/√α becomes.
+
+The x₀ form is used because `x0_clip` is only naturally expressible in it, and
+because it makes the floor's effect on α explicit. Both guards are on by default.
 
 ```python
 a_t   = clamp(alphas_cumprod[step + 1], min=1e-5)   # abar_t, floored
@@ -130,6 +144,27 @@ Baselines on the unobserved region, for reference:
 | Gaussian inpaint | 0.024 | 0.036 | 0.081 |
 
 `generate_structured_mask()` in `scripts/04_diffusion_train.py` drops contiguous
-blocks instead, which is both closer to how real observing systems fail (satellite
-swath gaps, cloud cover, station deserts) and the regime where a generative prior
-is actually needed.
+blocks instead, which is closer to how real observing systems fail (satellite
+swath gaps, cloud cover, station deserts). At the same 30% missingness, block-8
+masks make the interpolation baseline **6.8× harder**:
+
+| Mask | Missing | Gaussian inpaint RMSE |
+|---|---|---|
+| i.i.d. pixel | 0.30 | 0.022 |
+| block-8 | 0.30 | 0.151 |
+
+**This is motivation, not yet a result.** The checkpoints in this repository were
+trained on i.i.d. pixel masks, so evaluating them on block masks is
+out-of-distribution for the conditioning input. A poor diffusion score under block
+masking would therefore say nothing about the reconstruction problem's difficulty —
+only that the conditioner was never shown gaps of that shape. What the table above
+establishes is narrower and still worth stating: **structured masking breaks the
+trivial baseline.** Whether a pixel-mask-trained diffusion model transfers to
+structured gaps is open, and the honest way to close it is to retrain one model at
+one sparsity level on block masks and re-run the comparison. That is a single
+training job.
+
+Note also that the margin over interpolation at 30% random masking is real but
+thin (0.017 vs 0.024). With 70% coverage on fields this smooth, there is little for
+a generative prior to add. The case for diffusion here lives at 90% missingness and
+under structured gaps, which is where the comparison should be argued.
