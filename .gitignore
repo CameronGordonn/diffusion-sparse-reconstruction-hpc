@@ -18,3 +18,9 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+
+# SLURM job logs - contain cluster paths/usernames, regenerable
+logs/
+
+# Diffusion checkpoints (30 MB each) - publish via GitHub Releases, not git
+models/*.pt

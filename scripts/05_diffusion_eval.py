@@ -148,6 +148,69 @@ def save_example_plot(
     plt.close(fig)
 
 
+def load_train_climatology(data_dir: Path, train_years=(1979, 1980, 1981)) -> np.ndarray:
+    """Per-gridpoint mean over training years only, in normalized units."""
+    total, count = None, 0
+    for year in train_years:
+        arr = np.load(data_dir / f'norm_{year}.npy', mmap_mode='r')
+        block_sum = np.asarray(arr, dtype=np.float64).sum(axis=0)
+        total = block_sum if total is None else total + block_sum
+        count += arr.shape[0]
+    return (total / count).astype(np.float32)
+
+
+def _gaussian_kernel(sigma: float) -> np.ndarray:
+    radius = max(1, int(3 * sigma))
+    offsets = np.arange(-radius, radius + 1, dtype=np.float64)
+    kernel = np.exp(-0.5 * (offsets / sigma) ** 2)
+    return kernel / kernel.sum()
+
+
+def _separable_blur(field: np.ndarray, sigma: float) -> np.ndarray:
+    """Gaussian blur over (..., lat, lon): longitude wraps, latitude edge-pads."""
+    kernel = _gaussian_kernel(sigma)
+    radius = len(kernel) // 2
+    padded = np.concatenate([field[..., -radius:], field, field[..., :radius]], axis=-1)
+    out = np.apply_along_axis(lambda v: np.convolve(v, kernel, mode='valid'), -1, padded)
+    padded = np.concatenate(
+        [np.repeat(out[..., :1, :], radius, axis=-2), out, np.repeat(out[..., -1:, :], radius, axis=-2)],
+        axis=-2,
+    )
+    return np.apply_along_axis(lambda v: np.convolve(v, kernel, mode='valid'), -2, padded)
+
+
+def gaussian_inpaint(field: np.ndarray, mask: np.ndarray, sigma: float) -> np.ndarray:
+    """Normalized convolution: Gaussian-weighted mean of observed neighbours."""
+    num = _separable_blur(field * mask, sigma)
+    den = _separable_blur(np.broadcast_to(mask, field.shape).astype(np.float64), sigma)
+    return num / np.maximum(den, 1e-8)
+
+
+def baseline_metrics(
+    truth: np.ndarray,
+    mask: np.ndarray,
+    climatology: np.ndarray,
+    sigmas=(1.0, 2.0, 3.0, 5.0),
+) -> Dict[str, float]:
+    """Trivial reference scores on the unobserved region.
+
+    Any learned reconstruction must beat these to be worth reporting. The
+    Gaussian-inpaint entry takes the best sigma on the evaluation set itself,
+    which favours the baseline -- deliberately, so it is a hard bar.
+    """
+    zero_fill = masked_rmse(np.zeros_like(truth), truth, mask, observed=False)
+    clim_pred = np.broadcast_to(climatology[np.newaxis], truth.shape)
+    clim = masked_rmse(clim_pred, truth, mask, observed=False)
+    inpaint = min(
+        masked_rmse(gaussian_inpaint(truth, mask, sigma), truth, mask, observed=False)
+        for sigma in sigmas
+    )
+    return {
+        'zero_fill_global_mean': zero_fill,
+        'gridpoint_climatology': clim,
+        'gaussian_inpaint': inpaint,
+    }
+
 def main(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     processed_dir = Path(args.data_dir) / "results" / "processed"
@@ -159,6 +222,7 @@ def main(args: argparse.Namespace) -> None:
 
     evaluations: Dict[str, Dict] = {}
     mean, std = load_normalization(processed_dir)
+    climatology = load_train_climatology(processed_dir)
     test_years = [1983, 1985]
     sparsities = [0.3, 0.6, 0.9]
 
@@ -217,6 +281,7 @@ def main(args: argparse.Namespace) -> None:
                 "rmse_unobserved": masked_rmse(recon_mean, truth_np, mask_broadcast, observed=False),
                 "rmse_observed": masked_rmse(recon_mean, truth_np, mask_broadcast, observed=True),
             }
+            metrics['baselines'] = baseline_metrics(truth_np, mask_broadcast, climatology)
             evaluations[sparsity_key][str(year)] = metrics
 
             save_example_plot(

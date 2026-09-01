@@ -1,4 +1,4 @@
-# Running AM160 Final on UCSC Hummingbird
+# Running on UCSC Hummingbird
 
 ## Quick Reference
 

@@ -123,6 +123,41 @@ def generate_mask(shape: Tuple[int, ...], sparsity: float, seed: Optional[int] =
     return mask
 
 
+def generate_structured_mask(
+    shape: Tuple[int, ...],
+    sparsity: float,
+    block: int = 8,
+    seed: Optional[int] = None,
+) -> np.ndarray:
+    """
+    Binary mask with spatially contiguous gaps, in whole blocks.
+
+    i.i.d. per-pixel masking (generate_mask) leaves every missing cell with
+    observed neighbours one or two grid points away, so simple interpolation is
+    near-optimal and a generative prior has almost no headroom. Real sparse
+    observing systems drop contiguous regions -- satellite swath gaps, cloud
+    cover, station deserts -- which is the regime where a learned prior matters.
+
+    Args:
+        shape: (H, W)
+        sparsity: fraction missing
+        block: side length in grid cells of each dropped block
+        seed: random seed for reproducibility
+
+    Returns:
+        mask: (H, W) with 1 where observed, 0 where missing
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    h, w = shape
+    bh, bw = (h + block - 1) // block, (w + block - 1) // block
+    # Drop whole blocks, then trim back to the requested grid size.
+    coarse = np.random.binomial(1, 1 - sparsity, size=(bh, bw))
+    mask = np.repeat(np.repeat(coarse, block, axis=0), block, axis=1)[:h, :w]
+    return mask
+
+
 class DiffusionTrainer:
     def __init__(
         self,
@@ -194,60 +229,71 @@ class DiffusionTrainer:
         mask: torch.Tensor,
         num_steps: int = 300,
         clamp_observed: bool = True,
+        x0_clip: Optional[float] = 4.0,
+        alpha_cumprod_min: float = 1e-5,
     ) -> torch.Tensor:
         """
         Reverse diffusion sampling.
-        
+
+        Uses the x_0-parameterised posterior rather than the algebraically
+        equivalent epsilon form. The two agree in exact arithmetic but not
+        numerically: the cosine schedule sets ᾱ_T = cos²(π/2) = 0 exactly, so
+        the epsilon form's leading 1/√α_T coefficient reaches ~100 on the first
+        reverse step. That multiplies the model's residual error by 100, pushing
+        x off the training distribution; because the network is GroupNorm-
+        normalised its ‖ε̂‖ saturates around 1-2 regardless of ‖x‖, so no
+        restoring force remains and the remaining steps amplify without bound.
+        Clamping ᾱ_t away from zero and predicting x_0 keeps every coefficient
+        O(1). See docs/guides/SAMPLER_FIX.md.
+
         Args:
             shape: (C, H, W)
             y: sparse observations (B, C, H, W)
             mask: observation mask (B, 1, H, W)
             num_steps: number of denoising steps
-        
+            x0_clip: clip the predicted x_0 to [-x0_clip, x0_clip]; None disables
+            alpha_cumprod_min: floor on ᾱ_t, avoids division by √0 at t = T
+
         Returns:
             x_0: reconstructed sample
         """
         self.model.eval()
-        
+
         # Start from noise
         x = torch.randn(batch_size, *shape, device=self.device)
-        
+        acp = self.schedule.alphas_cumprod
+
         # Reverse diffusion
         for step in range(num_steps - 1, -1, -1):
             t = torch.full((batch_size,), step, dtype=torch.long, device=self.device)
-            
-            # Predict noise at this step
-            noise_pred = self.model(x, t, y, mask)
-            
-            # Denoise
-            alpha = self.schedule.alphas[step]
-            alpha_cumprod = self.schedule.alphas_cumprod[step]
-            alpha_cumprod_prev = (
-                self.schedule.alphas_cumprod[step - 1]
-                if step > 0
-                else torch.tensor(1.0, device=x.device)
-            )
 
-            # Numerical guards prevent inf/NaN when values approach zero.
-            alpha = torch.clamp(alpha, min=1e-8, max=1.0)
-            alpha_cumprod = torch.clamp(alpha_cumprod, min=1e-8, max=1.0)
-            alpha_cumprod_prev = torch.clamp(alpha_cumprod_prev, min=1e-8, max=1.0)
-            
-            # Compute posterior mean
-            coeff1 = 1.0 / torch.sqrt(alpha)
-            coeff2 = (1 - alpha) / torch.sqrt(torch.clamp(1 - alpha_cumprod, min=1e-8))
-            
-            mean = coeff1 * (x - coeff2 * noise_pred)
-            
+            # Predict noise at this step
+            noise_pred = self.model(x, t, y, mask).double()
+
+            # Schedule terms. Index step maps to ᾱ_t = acp[step + 1] so that
+            # alpha_t = ᾱ_t / ᾱ_{t-1} holds exactly.
+            a_t = torch.clamp(acp[step + 1], min=alpha_cumprod_min)
+            a_prev = acp[step]
+            alpha = torch.clamp(a_t / a_prev, min=1e-8, max=1.0)
+            beta = 1.0 - alpha
+
+            # Predict x_0, then form the posterior mean from it.
+            xd = x.double()
+            x0_pred = (xd - torch.sqrt(1 - a_t) * noise_pred) / torch.sqrt(a_t)
+            if x0_clip is not None:
+                x0_pred = torch.clamp(x0_pred, -x0_clip, x0_clip)
+
+            mean = (torch.sqrt(a_prev) * beta / (1 - a_t)) * x0_pred + (
+                torch.sqrt(alpha) * (1 - a_prev) / (1 - a_t)
+            ) * xd
+
             # Posterior variance
             if step > 0:
-                var = ((1 - alpha_cumprod_prev) / (1 - alpha_cumprod)) * (1 - alpha)
-                var = torch.clamp(var, min=0.0)
-                sigma = torch.sqrt(var)
-                z = torch.randn_like(x)
-                x = mean + sigma * z
+                var = torch.clamp(beta * (1 - a_prev) / (1 - a_t), min=0.0)
+                z = torch.randn_like(xd)
+                x = (mean + torch.sqrt(var) * z).float()
             else:
-                x = mean
+                x = mean.float()
 
             # Keep observed pixels tied to the sparse observations at every reverse step.
             if clamp_observed:

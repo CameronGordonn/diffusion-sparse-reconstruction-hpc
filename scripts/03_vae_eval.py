@@ -201,6 +201,52 @@ def compute_rmse(pred: np.ndarray, truth: np.ndarray, axis: Optional[Tuple[int, 
     return float(np.sqrt(np.mean(mse)))
 
 
+def load_train_climatology(data_dir: Path, train_years=(1979, 1980, 1981)) -> np.ndarray:
+    """Per-gridpoint mean over training years only, in normalized units."""
+    total, count = None, 0
+    for year in train_years:
+        arr = np.load(data_dir / f'norm_{year}.npy', mmap_mode='r')
+        block_sum = np.asarray(arr, dtype=np.float64).sum(axis=0)
+        total = block_sum if total is None else total + block_sum
+        count += arr.shape[0]
+    return (total / count).astype(np.float32)
+
+
+def one_step_baselines(x_t: np.ndarray, x_tp1: np.ndarray, climatology: np.ndarray) -> Dict[str, float]:
+    """Trivial references for the 6 h forecast, in normalized units.
+
+    Persistence (carry the input forward unchanged) is the bar a 6 h forecast
+    must clear. Normalization is per-channel and global, so 'zero' is exactly
+    the training mean field and scores ~1.0 by construction.
+    """
+    return {
+        'persistence': compute_rmse(x_t, x_tp1),
+        'gridpoint_climatology': compute_rmse(np.broadcast_to(climatology[np.newaxis], x_tp1.shape), x_tp1),
+        'zero_global_mean': compute_rmse(np.zeros_like(x_tp1), x_tp1),
+    }
+
+
+def persistence_by_lead(
+    data_dir: Path,
+    year: int,
+    lead_times_hours,
+    climatology: np.ndarray,
+    step_hours: int = 6,
+) -> Dict[str, Any]:
+    """Persistence RMSE at each rollout lead, plus the flat climatology line."""
+    series = np.load(data_dir / f'norm_{year}.npy', mmap_mode='r')
+    persistence = []
+    for lead in lead_times_hours:
+        k = int(round(lead / step_hours))
+        if k < 1 or k >= series.shape[0]:
+            persistence.append(float('nan'))
+            continue
+        diff = np.asarray(series[:-k], dtype=np.float32) - np.asarray(series[k:], dtype=np.float32)
+        persistence.append(float(np.sqrt(np.mean(diff ** 2, dtype=np.float64))))
+    diff = np.asarray(series, dtype=np.float32) - climatology[np.newaxis]
+    clim = float(np.sqrt(np.mean(diff ** 2, dtype=np.float64)))
+    return {'persistence': persistence, 'gridpoint_climatology': clim}
+
 def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -216,6 +262,7 @@ def main(args):
     # Load data and normalization
     data_dir = Path(args.data_dir) / "results" / "processed"
     mean, std = load_normalization(data_dir)
+    climatology = load_train_climatology(data_dir)
     
     results = {}
     
@@ -361,6 +408,13 @@ def main(args):
         fig.savefig(str(plots_dir / f"phase1_onestep_{test_year}.png"), dpi=150)
         plt.close(fig)
         
+        # Trivial baselines: a forecast that loses to these has no skill.
+        year_results['baselines'] = {
+            'one_step': one_step_baselines(x_t.cpu().numpy(), x_tp1_np, climatology),
+            'by_lead': persistence_by_lead(data_dir, test_year, lead_hours, climatology),
+        }
+        print(f"  Persistence one-step RMSE (normalized): {year_results['baselines']['one_step']['persistence']:.6f}")
+        print(f"  Climatology RMSE (normalized):          {year_results['baselines']['one_step']['gridpoint_climatology']:.6f}")
         results[test_year] = year_results
     
     # Save results
