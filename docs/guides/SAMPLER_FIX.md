@@ -79,6 +79,42 @@ The 100× coefficient is harmless for a *perfect* denoiser (the residual it
 multiplies is then zero) which is why the analytic-denoiser simulation stayed
 stable. It is fatal for a real one.
 
+## Why the headline number moved with the ensemble size
+
+The single-sample RMSE above (316.5, 4 cases) and the committed evaluation's 152.07
+(20 cases, 20 samples) are the same failure at different ensemble sizes. Drawing 8
+independent samples from the pre-fix sampler and averaging progressively:
+
+| k samples | RMSE of the mean | fitted m² + σ²/k | pure 1/√k |
+|---:|---:|---:|---:|
+| 1 | 316.5 | 315.0 | 316.5 |
+| 2 | 233.8 | 237.9 | 223.8 |
+| 4 | 186.0 | 187.8 | 158.3 |
+| 8 | 162.2 | 156.9 | 111.9 |
+| 20 | — | 135.0 | 70.8 |
+
+The error does **not** fall as 1/√k — that would predict 112 at k = 8 against an
+observed 162, and 71 at k = 20 against the committed 152. A least-squares fit of
+RMSE² = m² + σ²/k gives a systematic floor **m = 118** and an independent part
+σ = 292, and reproduces all four points to within 3%.
+
+So the diverged fields are strongly correlated across seeds, not independent noise:
+the runaway is driven deterministically by the same conditioning (y, M) and the same
+‖ε̂‖ saturation, so every seed lands somewhere near the same wrong answer. The
+per-sample RMSEs bear this out, spanning only 290.8–316.5 across 8 draws. Ensemble
+averaging removes the σ/√k part and stalls at m ≈ 118.
+
+Extrapolating to k = 20 gives 135 against the reported 152 — reasonable agreement
+given a different case set, case count and mask seed, and far closer than the 71 that
+independence would imply.
+
+The practical lesson: **a diverging sampler's reported RMSE is partly an artifact of
+`num_samples`.** Any comparison across runs with different ensemble sizes was
+measuring ensemble size as much as reconstruction quality. Sensitivity of the
+headline metric to `num_samples` is worth checking as a routine diagnostic — a
+metric that moves substantially with it is a sign that sampling, not the model, is
+setting the score.
+
 ## The fix
 
 The repair is a **guard on the schedule endpoint, not a change of

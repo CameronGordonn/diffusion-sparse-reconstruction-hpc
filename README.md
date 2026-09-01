@@ -24,8 +24,7 @@ tools/       environment checks and model-initialization smoke tests
 docs/        report PDF, planning guides, auto-generated results tables
 plots/       figures for each phase
 results/     evaluation metrics (JSON)
-models/      diffusion checkpoints and training histories
-logs/        SLURM job output from the cluster runs
+models/      training histories (checkpoints ship as a GitHub Release, not in git)
 ```
 
 ## Running on Hummingbird
@@ -54,8 +53,33 @@ sbatch --export=SPARSITY=0.6,MODEL_TYPE=v2 hpc/sbatch_diffusion_train.sh
 Full tables in [`docs/guides/FINAL_NUMBERS.md`](docs/guides/FINAL_NUMBERS.md); the write-up
 is [`docs/AM160_Final_Report.pdf`](docs/AM160_Final_Report.pdf).
 
-**VAE one-step RMSE (normalized):** 1.103 (1983), 1.071 (1985). Autoregressive rollout
-stays near 0.91–0.97 through 72 hours.
+### Phase 1 — Forecasting: the VAE has no skill
+
+Stated plainly, because the original write-up did not: **the forecaster loses to every
+trivial baseline at every lead time.** Normalized RMSE, mean of the two test years:
+
+| Lead | Persistence | Per-gridpoint climatology | Global training mean | **VAE** |
+|---|---:|---:|---:|---:|
+| 6 h | **0.057** | 0.59 | ~1.0 | **1.09** |
+| 24 h | 0.154 | 0.59 | ~1.0 | 0.93 |
+| 72 h | 0.266 | 0.59 | ~1.0 | 0.94 |
+| 240 h | 0.345 | 0.59 | ~1.0 | 0.93 |
+
+At 6 hours the VAE is ~19× worse than copying the input forward, and it never beats a
+single global constant at any lead. Persistence at 10 days is still three times better
+than the VAE at 6 hours.
+
+The flat rollout curve is the diagnosis, not a feature. Normalization is per-channel and
+global, so predicting zero *is* predicting the training mean and scores ~1.0 by
+construction. A curve that starts at 1.09 and settles at ~0.93 is a model that collapses
+to near-climatology immediately and stays there — error saturates on the first step and
+has nowhere left to grow. A forecaster with skill instead starts low and rises
+monotonically, crossing climatology at some finite lead, which is exactly what the
+persistence curve does.
+
+This is unfixed. The evaluation now reports and plots the baselines so the gap is legible;
+diagnosing the mean collapse itself (likely posterior collapse in the latent, given
+`beta` and the reconstruction/KL balance) is future work.
 
 **Diffusion reconstruction RMSE (normalized), cross-year means:**
 
