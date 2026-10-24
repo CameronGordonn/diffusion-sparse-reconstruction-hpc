@@ -24,7 +24,7 @@ This project evaluates two generative methods for atmospheric geopotential-heigh
 - Train-only normalization is used, with per-channel mean and std from concatenated 1979-1981 data.
 - Forecast training pairs are built as one-step temporal shifts: (x_t, x_t+1).
 
-From [results/processed/phase0_summary.json](results/processed/phase0_summary.json):
+From `results/processed/phase0_summary.json`:
 - train_concat_shape: [4384, 2, 91, 180]
 - train_pair_shape: x_t=[4383, 2, 91, 180], x_tp1=[4383, 2, 91, 180]
 - mean: [54053.8633, 199546.2031]
@@ -41,7 +41,7 @@ Figure 1. Representative phase-0 spatial snapshots (quality and structure checks
 ## 2. Problem 1: Conditional VAE Forecasting
 
 ### 2.1 Architecture choices and justification
-Implementation: [scripts/02_vae_model.py](scripts/02_vae_model.py), [scripts/02_vae_train.py](scripts/02_vae_train.py).
+Implementation: [scripts/02_vae_model.py](../../scripts/02_vae_model.py), [scripts/02_vae_train.py](../../scripts/02_vae_train.py).
 
 Key choices:
 - Convolutional encoder-decoder architecture with latent Gaussian bottleneck.
@@ -61,10 +61,10 @@ Final VAE training/evaluation settings:
 - rollout starts = 20
 
 Checkpoint artifact:
-- [models/vae_best.pt](models/vae_best.pt)
+- `models/vae_best.pt`
 
 ### 2.3 Quantitative results
-Source: [results/vae_evaluation.json](results/vae_evaluation.json)
+Source: [results/vae_evaluation.json](../../results/vae_evaluation.json)
 
 #### Table 1. One-step RMSE (normalized and physical)
 | Year | Overall (norm) | Z500 (norm) | Z50 (norm) | Overall (phys) | Z500 (phys) | Z50 (phys) |
@@ -102,18 +102,18 @@ Interpretation:
 ## 3. Problem 2: Conditional Diffusion Reconstruction
 
 ### 3.1 Architecture choices and justification
-Implementation: [scripts/04_diffusion_train.py](scripts/04_diffusion_train.py), [scripts/05_diffusion_eval.py](scripts/05_diffusion_eval.py).
+Implementation: [scripts/04_diffusion_train.py](../../scripts/04_diffusion_train.py), [scripts/05_diffusion_eval.py](../../scripts/05_diffusion_eval.py).
 
 Models:
-- Baseline: [scripts/04_diffusion_model_minimal.py](scripts/04_diffusion_model_minimal.py)
-- Richer variant: [scripts/04_diffusion_model_v2.py](scripts/04_diffusion_model_v2.py)
+- Baseline: [scripts/04_diffusion_model_minimal.py](../../scripts/04_diffusion_model_minimal.py)
+- Richer variant: [scripts/04_diffusion_model_v2.py](../../scripts/04_diffusion_model_v2.py)
 
 Training policy:
 - Separate model per sparsity level (30%, 60%, 90% missing).
 - Cosine noise schedule, epsilon-prediction objective.
 
 ### 3.2 Quantitative results (current final values)
-Source: [results/diffusion_evaluation.json](results/diffusion_evaluation.json)
+Source: [results/diffusion_evaluation.json](../../results/diffusion_evaluation.json)
 
 #### Table 3. Diffusion summary (cross-year means)
 | Sparsity | Unobserved (norm) | Observed (norm) | Unobserved (phys) | Observed (phys) |
@@ -123,7 +123,7 @@ Source: [results/diffusion_evaluation.json](results/diffusion_evaluation.json)
 | 90pct | 974.3283 | 1.1204e-07 | 4797072.25 | 6.7029e-05 |
 
 ### 3.3 V2 summary block (already updated)
-Values below reflect the current V2 summary from [results/diffusion_evaluation.json](results/diffusion_evaluation.json).
+Values below reflect the current V2 summary from [results/diffusion_evaluation.json](../../results/diffusion_evaluation.json).
 
 | Sparsity | Unobserved (norm) | Observed (norm) | Unobserved (phys) | Observed (phys) |
 |---|---:|---:|---:|---:|
@@ -168,21 +168,21 @@ Interpretation targets:
 ## 5. Reproducibility Appendix
 
 ### 5.1 Scripts and project structure
-- [scripts/01_data_loading.py](scripts/01_data_loading.py)
-- [scripts/02_vae_model.py](scripts/02_vae_model.py)
-- [scripts/02_vae_train.py](scripts/02_vae_train.py)
-- [scripts/03_vae_eval.py](scripts/03_vae_eval.py)
-- [scripts/04_diffusion_model_minimal.py](scripts/04_diffusion_model_minimal.py)
-- [scripts/04_diffusion_model_v2.py](scripts/04_diffusion_model_v2.py)
-- [scripts/04_diffusion_train.py](scripts/04_diffusion_train.py)
-- [scripts/05_diffusion_eval.py](scripts/05_diffusion_eval.py)
+- [scripts/01_data_loading.py](../../scripts/01_data_loading.py)
+- [scripts/02_vae_model.py](../../scripts/02_vae_model.py)
+- [scripts/02_vae_train.py](../../scripts/02_vae_train.py)
+- [scripts/03_vae_eval.py](../../scripts/03_vae_eval.py)
+- [scripts/04_diffusion_model_minimal.py](../../scripts/04_diffusion_model_minimal.py)
+- [scripts/04_diffusion_model_v2.py](../../scripts/04_diffusion_model_v2.py)
+- [scripts/04_diffusion_train.py](../../scripts/04_diffusion_train.py)
+- [scripts/05_diffusion_eval.py](../../scripts/05_diffusion_eval.py)
 
 ### 5.2 Cluster orchestration
-- [hpc/run_pipeline.sh](hpc/run_pipeline.sh)
-- [hpc/sbatch_vae_train.sh](hpc/sbatch_vae_train.sh)
-- [hpc/sbatch_vae_eval.sh](hpc/sbatch_vae_eval.sh)
-- [hpc/sbatch_diffusion_train.sh](hpc/sbatch_diffusion_train.sh)
-- [hpc/sbatch_diffusion_eval.sh](hpc/sbatch_diffusion_eval.sh)
+- [hpc/run_pipeline.sh](../../hpc/run_pipeline.sh)
+- [hpc/sbatch_vae_train.sh](../../hpc/sbatch_vae_train.sh)
+- [hpc/sbatch_vae_eval.sh](../../hpc/sbatch_vae_eval.sh)
+- [hpc/sbatch_diffusion_train.sh](../../hpc/sbatch_diffusion_train.sh)
+- [hpc/sbatch_diffusion_eval.sh](../../hpc/sbatch_diffusion_eval.sh)
 
 ### 5.3 Job IDs and runtime
 Insert final Slurm IDs and walltimes here.

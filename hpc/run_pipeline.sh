@@ -12,7 +12,7 @@
 # Requires:
 #   - hpc/sbatch_*.sh scripts present and executable
 #   - logs/ directory exists (created automatically below)
-#   - conda env 'am160' already built (see HUMMINGBIRD.md)
+#   - conda env 'am160' already built (see docs/HUMMINGBIRD.md)
 
 set -euo pipefail
 
